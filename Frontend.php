@@ -116,8 +116,14 @@ class Frontend
             'timeout' => 120,
         ];
 
+        Helper::log('Payload details:');
+        Helper::log($payloads);
+
         $request = wp_remote_post($tripayApiUrl, $payloads);
         $response = json_decode(wp_remote_retrieve_body($request));
+
+        Helper::log('Tripay response:');
+        Helper::log($response);
 
         if (JSON_ERROR_NONE !== json_last_error()) {
             throw new \Exception('Invalid JSON format detected.');
@@ -141,9 +147,16 @@ class Frontend
             'gateway' => 'tripay',
         ];
 
+        Helper::log('Payment details:');
+        Helper::log($payments);
+
         $paymentId = edd_insert_payment($payments);
 
+        Helper::log('Inserted payment ID: '.$paymentId);
+
         if (false === $paymentId) {
+            Helper::log('Error! Payment id is invalid (FALSE reurned).');
+
             edd_record_gateway_error(
                 'Payment Error',
                 sprintf(
@@ -153,20 +166,30 @@ class Frontend
                 $paymentId
             );
 
+            Helper::log('Sending back to checkout page..');
+
             edd_send_back_to_checkout('?payment-mode=tripay');
         } else {
             $transactionId = 'EDD-'.$paymentId.'-'.uniqid(); // Ex: EDD-12-6a87vfft55
             $data = ['merchant_ref' => $transactionId]; // Ex: T429518138RGQI9, DEV-T429518138RGQI9 (sandbox)
             $data = array_merge($data, $purchase);
 
+            Helper::log('Set to EDD transaction id: '.$paymentId.' with payment id: '.$transactionId);
+
             edd_set_payment_transaction_id($paymentId, $transactionId);
 
             $result = $this->getPaymentLink($data);
 
             if (isset($result->success) && $result->success) {
+                Helper::log('Redirecting to tripay payment link: '.$result->data->checkout_url);
+
                 wp_redirect($result->data->checkout_url); // redirect to tripay
+
+                Helper::log('Done. Customer sent to tripay checkout page!');
                 exit;
             }
+
+            Helper::log('Error! Failed to get tripay payment link.');
 
             $error = isset($result->message)
                 ? __('payment gateway responded with: "'.$result->message.'"', 'edd-tripay')
@@ -192,15 +215,22 @@ class Frontend
     {
         if ((strtoupper($_SERVER['REQUEST_METHOD']) !== 'POST')
         || ! array_key_exists('HTTP_X_CALLBACK_SIGNATURE', $_SERVER)) {
+            Helper::log('Error! Invalid callback method or signature.');
+
             exit;
         }
 
         $json = file_get_contents('php://input');
 
-        $tripaySignature = isset($_SERVER['HTTP_X_CALLBACK_SIGNATURE']) ? $_SERVER['HTTP_X_CALLBACK_SIGNATURE'] : '';
-        $localSignature = hash_hmac('sha256', $json, edd_get_option('edd_tripay_private_key'));
+        Helper::log('Tripay JSON response:');
+        Helper::log($json);
 
-        if (! hash_equals($tripaySignature, $localSignature)) {
+        $tripaySign = isset($_SERVER['HTTP_X_CALLBACK_SIGNATURE']) ? $_SERVER['HTTP_X_CALLBACK_SIGNATURE'] : '';
+        $localSign = hash_hmac('sha256', $json, edd_get_option('edd_tripay_private_key'));
+
+        if (! hash_equals($tripaySign, $localSign)) {
+            Helper::log('Error! Signature mismatch. local: '.$localSign.' --- tripay: '.$tripaySign);
+
             edd_record_gateway_error('Error', 'Local signature does not match against TriPay signature.');
             exit;
         }
@@ -213,96 +243,416 @@ class Frontend
 
         $event = $_SERVER['HTTP_X_CALLBACK_EVENT'];
 
+        http_response_code(200);
+
         if ($event == 'payment_status') {
-            error_log("event == 'payment_status'");
+            $savedId = edd_get_purchase_id_by_transaction_id($tripay->reference);
+            $status = edd_get_payment_status($savedId);
 
-            if ($tripay->status == 'PAID') {
-                error_log("status == 'paid'");
+            switch ($tripay->status) {
+                case 'UNPAID':
+                    // Status invoice sudah unpaid sebelumnya.
+                    if (in_array($status, ['unpaid'], true)) {
+                        $message = 'Cannot set payment status to UNPAID: Invoice status was already UNPAID.';
 
-                http_response_code(200);
+                        Helper::log('Error! '.$message);
 
-                $transactionId = $tripay->reference;
-                $savedPaymentId = edd_get_purchase_id_by_transaction_id($transactionId);
-                $paymentStatus = edd_get_payment_status($savedPaymentId);
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
 
-                if ($savedPaymentId && in_array($paymentStatus, ['publish', 'complete'], true)) {
-                    error_log('payment already published');
-                    exit;
-                }
+                    // Sudah expired, stop!
+                    if (in_array($status, ['abandoned'], true)) {
+                        $message = 'Cannot set payment status to UNPAID: Invoice status already EXPIRED.';
 
-                error_log(json_encode($tripay));
+                        Helper::log('Error! '.$message);
 
-                $refString = explode('-', $tripay->merchant_ref);
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
 
-                if (! is_array($refString) || empty($refString)) {
-                    error_log('Invalid merchant reference.');
-                    exit;
-                }
+                    // Sudah dibayar sebelumnya, tidak boleh di set ke unpaid.
+                    if (in_array($status, ['publish', 'complete'], true)) {
+                        $message = 'Cannot set payment status to PAID: Invoice status was already PAID.';
 
-                $paymentId = $refString[1];
-                $savedTransactionRef = edd_get_payment_transaction_id($paymentId);
+                        Helper::log('Error! '.$message);
 
-                if ($tripay->merchant_ref !== $savedTransactionRef) {
-                    error_log('trxref != savedref. TriRef = '.$tripay->reference.' - SavRef: '.$savedTransactionRef);
-                    exit;
-                }
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
 
-                $payment = new \EDD_Payment($paymentId);
+                    $ref = explode('-', $tripay->merchant_ref);
 
-                if (! $payment) {
-                    error_log('EDD_Payment null');
-                    exit;
-                }
+                    if (! is_array($ref) || empty($ref)) {
+                        $message = 'Cannot set payment status to UNPAID: Invalid reference ID.';
 
-                $orderTotal = edd_get_payment_amount($paymentId);
-                $currencySymbol = edd_currency_symbol($payment->currency);
-                $amountPaid = $tripay->total_amount;
-                $tripayTransactionRef = $tripay->reference;
+                        Helper::log('Error! '.$message);
 
-                if ($amountPaid < $orderTotal) {
-                    error_log('amount paid mismatch. paid: '.$amountPaid.' -- order total: '.$orderTotal);
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
 
-                    $formatted_amount_paid = $currencySymbol.$amountPaid;
-                    $formatted_order_total = $currencySymbol.$orderTotal;
+                    $paymentId = $ref[1];
+                    $savedRef = edd_get_payment_transaction_id($paymentId);
 
-                    $note = sprintf(__(
-                            'Look into this purchase. This order is currently revoked. '.
-                            'Reason: Amount paid is less than the total order amount. '.
-                            'Amount Paid was %1$s while the total order amount is %2$s. '.
-                            'TriPay Transaction Reference: %3$s',
-                        'edd-paystack'),
-                        $formatted_amount_paid,
-                        $formatted_order_total,
-                        $tripayTransactionRef
+                    if ($tripay->merchant_ref !== $savedRef) {
+                        $message = 'Cannot set payment status to UNPAID: Merchant ref mismatch.'.
+                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+
+                    $payment = new \EDD_Payment($paymentId);
+
+                    $note = sprintf(
+                        __('Payment successfuly set to UNPAID/PENDING. TriPay Ref: %s', 'edd-tripay'),
+                        $tripay->reference
                     );
 
-                    $payment->status = 'revoked';
+                    $payment->status = 'pending';
                     $payment->add_note($note);
-                    $payment->transaction_id = $tripayTransactionRef;
-                } else {
-                    error_log('amount paid OK');
+                    $payment->transaction_id = $tripay->merchant_ref;
+                    $payment->save();
 
-                    $note = sprintf(__(
-                            'Payment transaction was successful. '.
-                            'TriPay Transaction Reference: %s',
-                        'edd-paystack'),
-                        $tripayTransactionRef
+                    Helper::log('Success! '.$note);
+
+                    echo json_encode(['success' => true, 'message' => $note]);
+                    exit;
+                    break;
+
+                case 'PAID':
+                    // Sudah dibayar sebelumnya, stop!
+                    if (in_array($status, ['publish', 'complete'], true)) {
+                        $message = 'Cannot set payment status to PAID: Invoice status was already PAID.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    // Sudah expired, stop!
+                    if (in_array($status, ['abandoned'], true)) {
+                        $message = 'Cannot set payment status to PAID: Invoice status was already EXPIRED.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $ref = explode('-', $tripay->merchant_ref);
+
+                    if (! is_array($ref) || empty($ref)) {
+                        $message = 'Cannot set payment status to PAID: Invalid reference ID.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $paymentId = $ref[1];
+                    $savedRef = edd_get_payment_transaction_id($paymentId);
+
+                    if ($tripay->merchant_ref !== $savedRef) {
+                        $message = 'Cannot set payment status to PAID: Merchant ref mismatch.'.
+                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+
+                    $payment = new \EDD_Payment($paymentId);
+
+                    if (! $payment) {
+                        $message = 'Cannot set payment status to PAID: Payment not found.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $charged = edd_get_payment_amount($paymentId);
+                    $rupiah = edd_currency_symbol($payment->currency);
+                    $paid = $tripay->total_amount;
+
+                    // Gagal, harga barang lebih kecil dari jumlah bayar customer.
+                    if ($paid < $charged) {
+                        $note = sprintf(
+                            __('Order revoked, amount mismatch. Paid: %1$s Order: %2$s. TriPay Ref: %3$s', 'edd-tripay'),
+                            $rupiah.$paid,
+                            $rupiah.$charged,
+                            $tripay->reference
+                        );
+
+                        $payment->status = 'revoked';
+                        $payment->add_note($note);
+                        $payment->transaction_id = $tripay->merchant_ref;
+                        $payment->save();
+
+                        Helper::log('Error! '.$note);
+
+                        echo json_encode(['success' => false, 'message' => $note]);
+                        exit;
+
+                    // OK. ubah status menjadi paid.
+                    } else {
+                        $note = sprintf(__('Payment successful. TriPay Ref: %s', 'edd-tripay'), $tripay->reference);
+                        $payment->status = 'publish';
+                        $payment->add_note($note);
+                        $payment->transaction_id = $tripay->merchant_ref;
+                        $payment->save();
+
+                        Helper::log('Success! '.$note);
+
+                        echo json_encode(['success' => true, 'message' => $note]);
+                        exit;
+                    }
+                    break;
+
+                case 'EXPIRED':
+                    // Sudah dibayar sebelumnya, tidak boleh diubah lagi ke expired.
+                    if (in_array($status, ['publish', 'complete'], true)) {
+                        $message = 'Cannot set payment status to EXPIRED: Invoice status was already PAID.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    // Sudah di set expired sebelumnya, stop!
+                    if (in_array($status, ['abandoned'], true)) {
+                        $message = 'Cannot set payment status to EXPIRED: Invoice status was already EXPIRED.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $ref = explode('-', $tripay->merchant_ref);
+
+                    if (! is_array($ref) || empty($ref)) {
+                        $message = 'Cannot set payment status to EXPIRED: Invalid reference ID.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $paymentId = $ref[1];
+                    $savedRef = edd_get_payment_transaction_id($paymentId);
+
+                    if ($tripay->merchant_ref !== $savedRef) {
+                        $message = 'Cannot set payment status to EXPIRED: Merchant ref mismatch.'.
+                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+
+                    $payment = new \EDD_Payment($paymentId);
+
+                    if (! $payment) {
+                        $message = 'Cannot set payment status to EXPIRED: Payment not found.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $note = sprintf(
+                        __('Payment successfuly set as EXPIRED/ABANDONED by TriPay. TriPay Ref: %s', 'edd-tripay'),
+                        $tripay->reference
                     );
 
-                    $payment->status = 'publish';
+                    // List order status yang tersedia di EDD hanya:
+                    // 'publish', 'complete', 'pending', 'refunded', 'revoked',
+                    // 'failed', 'abandoned', 'preapproval', 'cancelled'
+                    $payment->status = 'abandoned';
                     $payment->add_note($note);
-                    $payment->transaction_id = $tripayTransactionRef;
-                }
+                    $payment->transaction_id = $tripay->merchant_ref;
+                    $payment->save();
 
-                error_log('saving paymentpayloads');
+                    Helper::log('Success! '.$message);
 
-                $payment->save();
-                exit;
+                    echo json_encode(['success' => true, 'message' => $note]);
+                    exit;
+                    break;
+
+                case 'FAILED':
+                    // Sudah dibayar sebelumnya, tidak boleh diubah lagi ke failed.
+                    if (in_array($status, ['publish', 'complete'], true)) {
+                        $message = 'Cannot set payment status to FAILED: Invoice status was already PAID.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $ref = explode('-', $tripay->merchant_ref);
+
+                    if (! is_array($ref) || empty($ref)) {
+                        $message = 'Cannot set payment status to FAILED: Invalid reference ID.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $paymentId = $ref[1];
+                    $savedRef = edd_get_payment_transaction_id($paymentId);
+
+                    if ($tripay->merchant_ref !== $savedRef) {
+                        $message = 'Cannot set payment status to FAILED: Merchant ref mismatch.'.
+                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+
+                    $payment = new \EDD_Payment($paymentId);
+
+                    if (! $payment) {
+                        $message = 'Cannot set payment status to FAILED: Payment not found.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $note = sprintf(
+                        __('Payment successfuly set to FAILED by TriPay. TriPay Ref: %s', 'edd-tripay'),
+                        $tripay->reference
+                    );
+
+                    $payment->status = 'failed';
+                    $payment->add_note($note);
+                    $payment->transaction_id = $tripay->merchant_ref;
+                    $payment->save();
+
+                    Helper::log('Success! '.$note);
+
+                    echo json_encode(['success' => true, 'message' => $note]);
+                    exit;
+                    break;
+
+                case 'REFUND':
+                    // Status invoice belum dibayar, tidak boleh diubah ke refunded.
+                    if (! in_array($status, ['publish', 'complete'], true)) {
+                        $message = 'Cannot set payment status to REFUND: Invoice status was still UNPAID.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    // Sudah expired, stop!
+                    if (in_array($status, ['abandoned'], true)) {
+                        $message = 'Cannot set payment status to REFUND: Invoice status was already EXPIRED.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    // Sudah direfund sebelumnya, stop!
+                    if (in_array($status, ['refunded'], true)) {
+                        $message = 'Cannot set payment status to REFUND: Invoice status was already REFUND.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $ref = explode('-', $tripay->merchant_ref);
+
+                    if (! is_array($ref) || empty($ref)) {
+                        $message = 'Cannot set payment status to REFUND: Invalid reference ID.';
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $paymentId = $ref[1];
+                    $savedRef = edd_get_payment_transaction_id($paymentId);
+
+                    if ($tripay->merchant_ref !== $savedRef) {
+                        $message = 'Cannot set payment status to REFUND: Merchant ref mismatch.'.
+                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+
+                        Helper::log('Error! '.$message);
+
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+
+                    $payment = new \EDD_Payment($paymentId);
+
+                    if (! $payment) {
+                        $message = 'Cannot set payment status to REFUND: Payment not found.';
+                        echo json_encode(['success' => false, 'message' => $message]);
+                        exit;
+                    }
+
+                    $note = sprintf(
+                        __('Payment successfuly set as REFUNDED by TriPay. TriPay Ref: %s', 'edd-tripay'),
+                        $tripay->reference
+                    );
+
+                    $payment->status = 'refunded';
+                    $payment->transaction_id = $tripay->merchant_ref;
+                    $payment->add_note($note);
+                    $payment->save();
+
+                    Helper::log('Success! '.$message);
+
+                    echo json_encode(['success' => true, 'message' => $note]);
+                    exit;
+                    break;
+
+                default:
+                    Helper::log('Error! '.$message);
+
+                    echo json_encode(['success' => false, 'message' => sprintf('Unknown payment status: %s', $tripay->status)]);
+                    exit;
+                    break;
             }
-        }
+        } else {
+            $message = 'Whoops! No action was taken.';
 
-        error_log('OUTER BRACES');
-        exit;
+            Helper::log('Error! '.$message);
+
+            echo json_encode(['success' => false, 'message' => $message]);
+            exit;
+        }
     }
 
     public function addIdrCurrency($currencies)

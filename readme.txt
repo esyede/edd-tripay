@@ -1,6 +1,6 @@
 === Tripay Payment for Easy Digital Downloads ===
-Contributors: Suyadi
-Donate link: https://github.com/esyede
+Contributors: Tripay Team
+Donate link: https://tripay.co.id
 Tags: tripay, edd, payment gateway, plugins, indonesia, bank
 Requires at least: 4.7
 Requires PHP: 5.6
@@ -10,7 +10,7 @@ License: MIT License
 License URI: https://opensource.org/licenses/MIT
 
 
-Tripay for Easy Digital Downloads allows your store in Indonesia to accept secure payments from multiple Indonesian payment channels.
+Tripay for Easy Digital Downloads allows your store in Indonesia to accept secure payments from multiple indonesian payment channels.
 
 
 == Description ==

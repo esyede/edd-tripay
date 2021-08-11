@@ -85,17 +85,17 @@ class Admin
                 'options' => [
                     'ALFAMART' => 'Alfamart',
                     'ALFAMIDI' => 'Alfamidi',
-                    'BCAVA' => 'Bank BCA',
-                    'BNIVA' => 'Bank BNI',
-                    'BRIVA' => 'Bank BRI',
-                    'CIMBVA' => 'Bank CIMB',
-                    'MANDIRIVA' => 'Bank Mandiri',
-                    'MYBVA' => 'Bank MayBank',
-                    'MUAMALATVA' => 'Bank Muamalat',
-                    'PERMATAVA' => 'Bank Permata',
-                    'SMSVA' => 'Bank Sinarmas',
-                    'QRIS' => 'Scan QR',
-                    'QRISC' => 'Scan QR (Customizable)',
+                    'BCAVA' => 'Bank BCA VA',
+                    'BNIVA' => 'Bank BNI VA',
+                    'BRIVA' => 'Bank BRI VA',
+                    'CIMBVA' => 'Bank CIMB VA',
+                    'MANDIRIVA' => 'Bank Mandiri VA',
+                    'MYBVA' => 'Bank MayBank VA',
+                    'MUAMALATVA' => 'Bank Muamalat VA',
+                    'PERMATAVA' => 'Bank Permata VA',
+                    'SMSVA' => 'Bank Sinarmas VA',
+                    'QRIS' => 'QRIS',
+                    'QRISC' => 'QRIS (Customizable)',
                 ],
             ],
             [
@@ -143,10 +143,11 @@ class Admin
         if (edd_get_option('edd_tripay_sandbox_mode')) {
             echo '<div class="notice notice-error">
                 <p>'.__(
-                    'TriPay Sandbox mode is still enabled for Easy Digital Downloads, '.
+                'TriPay Sandbox mode is still enabled for Easy Digital Downloads, '.
                     'click <a href="'.admin_url('edit.php?post_type=download&page=edd-settings&tab=gateways&section=tripay-settings')
-                    .'">here</a> to disable it when you want to start accepting live payment on your site.', 'edd-tripay'
-                ).'
+                    .'">here</a> to disable it when you want to start accepting live payment on your site.',
+                'edd-tripay'
+            ).'
                 </p>
              </div>';
         }
@@ -157,9 +158,10 @@ class Admin
         if (! Helper::allSettingsAreProvided()) {
             echo '<div class="notice notice-error">
                 <p>'.__(
-                    'The TriPay Payment Gateway for Easy Digital Downloads has not been fully configured, '.
-                    'please <a href="'.admin_url('edit.php?post_type=download&page=edd-settings&tab=gateways&section=tripay-settings').'">complete the setup</a> by adding your settings.', 'edd-tripay'
-                ).'
+                'The TriPay Payment Gateway for Easy Digital Downloads has not been fully configured, '.
+                    'please <a href="'.admin_url('edit.php?post_type=download&page=edd-settings&tab=gateways&section=tripay-settings').'">complete the setup</a> by adding your settings.',
+                'edd-tripay'
+            ).'
                 </p>
              </div>';
         }
