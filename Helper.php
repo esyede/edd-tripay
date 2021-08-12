@@ -6,6 +6,8 @@ defined('ABSPATH') or exit('No direct access.');
 
 class Helper
 {
+    private static $logging;
+
     public static function allSettingsAreProvided()
     {
         $merchantCode = trim(edd_get_option('edd_tripay_merchant_code'));
@@ -24,9 +26,7 @@ class Helper
 
     public static function log($data)
     {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            $data = (is_array($data) || is_object($data)) ? print_r($data, true) : $data;
-            error_log('[TRIPAY DEBUG] '.$data);
-        }
+        $data = (is_array($data) || is_object($data)) ? json_encode($data) : $data;
+        edd_debug_log('[TRIPAY] '.$data);
     }
 }

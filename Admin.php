@@ -141,6 +141,8 @@ class Admin
     public function showSandboxModeNotice()
     {
         if (edd_get_option('edd_tripay_sandbox_mode')) {
+            Helper::log('Sandox mode is active!');
+
             echo '<div class="notice notice-error">
                 <p>'.__(
                 'TriPay Sandbox mode is still enabled for Easy Digital Downloads, '.
@@ -156,6 +158,8 @@ class Admin
     public function showTripayNotConfiguredNotice()
     {
         if (! Helper::allSettingsAreProvided()) {
+            Helper::log('Tripay plugin has not been fully configured!');
+
             echo '<div class="notice notice-error">
                 <p>'.__(
                 'The TriPay Payment Gateway for Easy Digital Downloads has not been fully configured, '.

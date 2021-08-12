@@ -116,14 +116,12 @@ class Frontend
             'timeout' => 120,
         ];
 
-        Helper::log('Payload details:');
-        Helper::log($payloads);
+        Helper::log('Payloads: '.json_encode($payloads));
 
         $request = wp_remote_post($tripayApiUrl, $payloads);
         $response = json_decode(wp_remote_retrieve_body($request));
 
-        Helper::log('Tripay response:');
-        Helper::log($response);
+        Helper::log('Response: '.json_encode($response));
 
         if (JSON_ERROR_NONE !== json_last_error()) {
             throw new \Exception('Invalid JSON format detected.');
@@ -147,15 +145,14 @@ class Frontend
             'gateway' => 'tripay',
         ];
 
-        Helper::log('Payment details:');
-        Helper::log($payments);
+        Helper::log('Payment Data: '.json_encode($payments));
 
         $paymentId = edd_insert_payment($payments);
 
-        Helper::log('Inserted payment ID: '.$paymentId);
+        Helper::log('Inserted Payment ID: '.$paymentId);
 
         if (false === $paymentId) {
-            Helper::log('Error! Payment id is invalid (FALSE reurned).');
+            Helper::log('Error! Unable to insert payment data.');
 
             edd_record_gateway_error(
                 'Payment Error',
@@ -174,7 +171,7 @@ class Frontend
             $data = ['merchant_ref' => $transactionId]; // Ex: T429518138RGQI9, DEV-T429518138RGQI9 (sandbox)
             $data = array_merge($data, $purchase);
 
-            Helper::log('Set to EDD transaction id: '.$paymentId.' with payment id: '.$transactionId);
+            Helper::log('Set EDD Trx ID to: '.$paymentId.' with TriPay Reference: '.$transactionId);
 
             edd_set_payment_transaction_id($paymentId, $transactionId);
 
@@ -222,15 +219,13 @@ class Frontend
 
         $json = file_get_contents('php://input');
 
-        Helper::log('Tripay JSON response:');
-        Helper::log($json);
+        Helper::log('TriPay JSON Data: '.$json);
 
         $tripaySign = isset($_SERVER['HTTP_X_CALLBACK_SIGNATURE']) ? $_SERVER['HTTP_X_CALLBACK_SIGNATURE'] : '';
         $localSign = hash_hmac('sha256', $json, edd_get_option('edd_tripay_private_key'));
 
         if (! hash_equals($tripaySign, $localSign)) {
-            Helper::log('Error! Signature mismatch. local: '.$localSign.' --- tripay: '.$tripaySign);
-
+            Helper::log('Error! Signature mismatch. Local: '.$localSign.' --- TriPay: '.$tripaySign);
             edd_record_gateway_error('Error', 'Local signature does not match against TriPay signature.');
             exit;
         }
@@ -238,7 +233,10 @@ class Frontend
         $tripay = json_decode($json);
 
         if (JSON_ERROR_NONE !== json_last_error()) {
-            throw new \Exception('Invalid JSON format detected.');
+            $message = 'Error! Invalid JSON format detected.';
+            Helper::log($message);
+            echo json_encode(['success' => false, 'message' => $message]);
+            exit;
         }
 
         $event = $_SERVER['HTTP_X_CALLBACK_EVENT'];
@@ -246,7 +244,7 @@ class Frontend
         http_response_code(200);
 
         if ($event == 'payment_status') {
-            $savedId = edd_get_purchase_id_by_transaction_id($tripay->reference);
+            $savedId = edd_get_purchase_id_by_transaction_id($tripay->merchant_ref);
             $status = edd_get_payment_status($savedId);
 
             switch ($tripay->status) {
@@ -256,7 +254,6 @@ class Frontend
                         $message = 'Cannot set payment status to UNPAID: Invoice status was already UNPAID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -266,7 +263,6 @@ class Frontend
                         $message = 'Cannot set payment status to UNPAID: Invoice status already EXPIRED.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -276,7 +272,6 @@ class Frontend
                         $message = 'Cannot set payment status to PAID: Invoice status was already PAID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -287,7 +282,6 @@ class Frontend
                         $message = 'Cannot set payment status to UNPAID: Invalid reference ID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -297,10 +291,9 @@ class Frontend
 
                     if ($tripay->merchant_ref !== $savedRef) {
                         $message = 'Cannot set payment status to UNPAID: Merchant ref mismatch.'.
-                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+                            ' tripay mref: '.$tripay->merchant_ref.', edd mref: '.$savedRef;
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -319,7 +312,6 @@ class Frontend
                     $payment->save();
 
                     Helper::log('Success! '.$note);
-
                     echo json_encode(['success' => true, 'message' => $note]);
                     exit;
                     break;
@@ -330,7 +322,6 @@ class Frontend
                         $message = 'Cannot set payment status to PAID: Invoice status was already PAID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -340,7 +331,6 @@ class Frontend
                         $message = 'Cannot set payment status to PAID: Invoice status was already EXPIRED.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -351,7 +341,6 @@ class Frontend
                         $message = 'Cannot set payment status to PAID: Invalid reference ID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -361,10 +350,9 @@ class Frontend
 
                     if ($tripay->merchant_ref !== $savedRef) {
                         $message = 'Cannot set payment status to PAID: Merchant ref mismatch.'.
-                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+                            ' tripay mref: '.$tripay->merchant_ref.', edd mref: '.$savedRef;
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -376,7 +364,6 @@ class Frontend
                         $message = 'Cannot set payment status to PAID: Payment not found.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -400,7 +387,6 @@ class Frontend
                         $payment->save();
 
                         Helper::log('Error! '.$note);
-
                         echo json_encode(['success' => false, 'message' => $note]);
                         exit;
 
@@ -413,7 +399,6 @@ class Frontend
                         $payment->save();
 
                         Helper::log('Success! '.$note);
-
                         echo json_encode(['success' => true, 'message' => $note]);
                         exit;
                     }
@@ -425,7 +410,6 @@ class Frontend
                         $message = 'Cannot set payment status to EXPIRED: Invoice status was already PAID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -435,7 +419,6 @@ class Frontend
                         $message = 'Cannot set payment status to EXPIRED: Invoice status was already EXPIRED.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -446,7 +429,6 @@ class Frontend
                         $message = 'Cannot set payment status to EXPIRED: Invalid reference ID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -456,10 +438,9 @@ class Frontend
 
                     if ($tripay->merchant_ref !== $savedRef) {
                         $message = 'Cannot set payment status to EXPIRED: Merchant ref mismatch.'.
-                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+                            ' tripay mref: '.$tripay->merchant_ref.', edd mref: '.$savedRef;
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -471,7 +452,6 @@ class Frontend
                         $message = 'Cannot set payment status to EXPIRED: Payment not found.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -489,8 +469,7 @@ class Frontend
                     $payment->transaction_id = $tripay->merchant_ref;
                     $payment->save();
 
-                    Helper::log('Success! '.$message);
-
+                    Helper::log('Success! '.$note);
                     echo json_encode(['success' => true, 'message' => $note]);
                     exit;
                     break;
@@ -501,7 +480,6 @@ class Frontend
                         $message = 'Cannot set payment status to FAILED: Invoice status was already PAID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -512,7 +490,6 @@ class Frontend
                         $message = 'Cannot set payment status to FAILED: Invalid reference ID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -522,10 +499,9 @@ class Frontend
 
                     if ($tripay->merchant_ref !== $savedRef) {
                         $message = 'Cannot set payment status to FAILED: Merchant ref mismatch.'.
-                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+                            ' tripay mref: '.$tripay->merchant_ref.', edd mref: '.$savedRef;
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -537,7 +513,6 @@ class Frontend
                         $message = 'Cannot set payment status to FAILED: Payment not found.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -553,7 +528,6 @@ class Frontend
                     $payment->save();
 
                     Helper::log('Success! '.$note);
-
                     echo json_encode(['success' => true, 'message' => $note]);
                     exit;
                     break;
@@ -564,7 +538,6 @@ class Frontend
                         $message = 'Cannot set payment status to REFUND: Invoice status was still UNPAID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -574,7 +547,6 @@ class Frontend
                         $message = 'Cannot set payment status to REFUND: Invoice status was already EXPIRED.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -584,7 +556,6 @@ class Frontend
                         $message = 'Cannot set payment status to REFUND: Invoice status was already REFUND.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -595,7 +566,6 @@ class Frontend
                         $message = 'Cannot set payment status to REFUND: Invalid reference ID.';
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -605,10 +575,9 @@ class Frontend
 
                     if ($tripay->merchant_ref !== $savedRef) {
                         $message = 'Cannot set payment status to REFUND: Merchant ref mismatch.'.
-                            ' trpMerchRef: '.$tripay->merchant_ref.', eddRef: '.$savedRef;
+                            ' tripay mref: '.$tripay->merchant_ref.', edd mref: '.$savedRef;
 
                         Helper::log('Error! '.$message);
-
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -618,6 +587,8 @@ class Frontend
 
                     if (! $payment) {
                         $message = 'Cannot set payment status to REFUND: Payment not found.';
+
+                        Helper::log('Error! '.$message);
                         echo json_encode(['success' => false, 'message' => $message]);
                         exit;
                     }
@@ -632,16 +603,16 @@ class Frontend
                     $payment->add_note($note);
                     $payment->save();
 
-                    Helper::log('Success! '.$message);
-
+                    Helper::log('Success! '.$note);
                     echo json_encode(['success' => true, 'message' => $note]);
                     exit;
                     break;
 
                 default:
-                    Helper::log('Error! '.$message);
+                    $message = sprintf('Unknown payment status: %s', $tripay->status);
 
-                    echo json_encode(['success' => false, 'message' => sprintf('Unknown payment status: %s', $tripay->status)]);
+                    Helper::log('Error! '.$message);
+                    echo json_encode(['success' => false, 'message' => $message]);
                     exit;
                     break;
             }
@@ -649,7 +620,6 @@ class Frontend
             $message = 'Whoops! No action was taken.';
 
             Helper::log('Error! '.$message);
-
             echo json_encode(['success' => false, 'message' => $message]);
             exit;
         }
