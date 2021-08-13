@@ -1,8 +1,8 @@
 <?php
 /*
-    Plugin Name:       Tripay Payment for EDD
+    Plugin Name:       TriPay Payment for EDD
     Plugin URL:        https://tripay.co.id
-    Description:       Tripay payment gateway for Easy Digital Downloads
+    Description:       TriPay payment gateway for Easy Digital Downloads
     Version:           1.0.0
     Author:            PT Trijaya Digital Group
     Author URI:        https://tripay.co.id
