@@ -29,28 +29,28 @@ class Admin
 
     public function showSettings($settings)
     {
-        $help = '<br>For <b>Sandbox</b> mode see <a href="https://tripay.co.id/simulator/merchant" '.
-            'target="_blank">here</a>'.
-            '<br>For <b>Production</b> mode see <a href="https://tripay.co.id/member/merchant" '.
-            'target="_blank">here</a>';
+        $help = '<br>Untuk mode <b>Sandbox</b> lihat <a href="https://tripay.co.id/simulator/merchant" '.
+            'target="_blank">disini</a>'.
+            '<br>Untuk mode <b>Production</b> lihat <a href="https://tripay.co.id/member/merchant" '.
+            'target="_blank">disini</a>';
 
         $forms = [
             [
                 'id' => 'edd_tripay_settings',
-                'name' => '<strong>'.__('Tripay Settings', 'edd-tripay').'</strong>',
-                'desc' => __('Configure the gateway settings', 'edd-tripay'),
+                'name' => '<strong>Pengaturan TriPay</strong>',
+                'desc' => 'Kelola pengaturan TriPay Payment',
                 'type' => 'header',
             ],
             [
                 'id' => 'edd_tripay_sandbox_mode',
-                'name' => __('Use Sandbox API', 'edd-tripay'),
+                'name' => 'Gunakan API Sandbox',
                 'desc' => $help,
                 'type' => 'checkbox',
                 'std' => 0,
             ],
             [
                 'id' => 'edd_tripay_merchant_code',
-                'name' => __('Merchant Code', 'edd-tripay'),
+                'name' => 'Kode Merchant',
                 'desc' => $help,
                 'type' => 'text',
                 'size' => 'regular',
@@ -58,28 +58,28 @@ class Admin
             [
                 'id' => 'edd_tripay_callback_url',
                 'type' => 'descriptive_text',
-                'name' => __('Callback URL', 'edd-tripay'),
-                'desc' => '<p>Use this for Callback URL on your Tripay dashboard:</p>'.
+                'name' => 'URL Callback',
+                'desc' => '<p>Gunakan URL ini untuk isian URL Callback di dashboard TriPay:</p>'.
                     '<p><strong><pre>'.home_url('index.php?edd-listener=tripay').'</pre></strong></p>',
             ],
             [
                 'id' => 'edd_tripay_api_key',
-                'name' => __('API Key', 'edd-tripay'),
+                'name' => 'API Key',
                 'desc' => $help,
                 'type' => 'text',
                 'size' => 'regular',
             ],
             [
                 'id' => 'edd_tripay_private_key',
-                'name' => __('Private Key', 'edd-tripay'),
+                'name' => 'Private Key',
                 'desc' => $help,
                 'type' => 'text',
                 'size' => 'regular',
             ],
             [
                 'id' => 'edd_tripay_payment_chamnnels',
-                'name' => __('Payment Channels', 'edd-tripay'),
-                'desc' => 'Choose on your desired payment channels',
+                'name' => 'Channel Pembayaran',
+                'desc' => 'Centang channel pembayaran sesuai yang telah anda aktifkan di dashboard TriPay',
                 'type' => 'multicheck',
                 'size' => 'regular',
                 'options' => [
@@ -100,24 +100,24 @@ class Admin
             ],
             [
                 'id' => 'edd_tripay_expires_after',
-                'name' => __('Expires After', 'edd-tripay'),
+                'name' => 'Kedaluwarsa Setelah',
                 'desc' => '<br>Jumlah hari sebelum invoice dianggap kedaluwarsa.',
                 'type' => 'select',
                 'options' => [
-                    '1' => '1 Day',
-                    '2' => '2 Days',
-                    '3' => '3 Days',
-                    '4' => '4 Days',
-                    '5' => '5 Days',
-                    '6' => '6 Days',
-                    '7' => '7 Days',
+                    '1' => '1 Hari',
+                    '2' => '2 Hari',
+                    '3' => '3 Hari',
+                    '4' => '4 Hari',
+                    '5' => '5 Hari',
+                    '6' => '6 Hari',
+                    '7' => '7 Hari',
                 ],
                 'size' => 'regular',
             ],
             [
                 'id' => 'edd_tripay_checkout_label',
-                'name' => __('Checkout Label', 'edd-tripay'),
-                'desc' => '<br>Payment gateway display name on checkout page',
+                'name' => 'Label Checkout',
+                'desc' => '<br>Tampilan nama pembayaran pada halaman checkout (opsional)',
                 'type' => 'text',
                 'size' => 'regular',
             ],
@@ -141,13 +141,13 @@ class Admin
     public function showSandboxModeNotice()
     {
         if (edd_get_option('edd_tripay_sandbox_mode')) {
-            Helper::log('Sandox mode is active!');
+            Helper::log('Mode sandox masih aktif!');
 
             echo '<div class="notice notice-error">
                 <p>'.__(
-                'TriPay Sandbox mode is still enabled for Easy Digital Downloads, '.
-                    'click <a href="'.admin_url('edit.php?post_type=download&page=edd-settings&tab=gateways&section=tripay-settings')
-                    .'">here</a> to disable it when you want to start accepting live payment on your site.',
+                'Mode sandbox TriPay EDD masih dalam keadaan aktif, '.
+                    'klik <a href="'.admin_url('edit.php?post_type=download&page=edd-settings&tab=gateways&section=tripay-settings')
+                    .'">disini</a> untuk menonaktifkannya saat anda sudah siap menjalankan plugin ini di lingkungan produksi.',
                 'edd-tripay'
             ).'
                 </p>
@@ -158,12 +158,12 @@ class Admin
     public function showTripayNotConfiguredNotice()
     {
         if (! Helper::allSettingsAreProvided()) {
-            Helper::log('Tripay plugin has not been fully configured!');
+            Helper::log('Konfigurasi plugin TriPay belum lengkap!');
 
             echo '<div class="notice notice-error">
                 <p>'.__(
-                'The TriPay Payment Gateway for Easy Digital Downloads has not been fully configured, '.
-                    'please <a href="'.admin_url('edit.php?post_type=download&page=edd-settings&tab=gateways&section=tripay-settings').'">complete the setup</a> by adding your settings.',
+                'Plugin TriPay EDD belum dikonfigurasi dengan lengkap, '.
+                    'please <a href="'.admin_url('edit.php?post_type=download&page=edd-settings&tab=gateways&section=tripay-settings').'">segera lengkapi</a> konfigurasi anda.',
                 'edd-tripay'
             ).'
                 </p>

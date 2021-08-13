@@ -1,27 +1,38 @@
 === Tripay Payment for Easy Digital Downloads ===
-Contributors: Tripay Team
-Donate link: https://tripay.co.id
+Contributors: trijayadigital
+Donate link: https://tripay.co.id/
 Tags: tripay, edd, payment gateway, plugins, indonesia, bank
 Requires at least: 4.7
-Requires PHP: 5.6
 Tested up to: 5.8
 Stable tag: 1.0.0
-License: MIT License
+Requires PHP: 5.6
+License: MIT
 License URI: https://opensource.org/licenses/MIT
 
-
-Tripay for Easy Digital Downloads allows your store in Indonesia to accept secure payments from multiple indonesian payment channels.
-
+TriPay Payment adalah payment gateway Indonesia yang menyediakan beragam metode pembayaran seperti virtual account, convenience store, e-wallet, dll.
 
 == Description ==
 
-> <strong>You have to set the Webhook URL in the Merchant Settings page in your Tripay account</strong>. Go to the plugin settings page for more information.
+TriPay Payment adalah payment gateway Indonesia yang menyediakan beragam metode pembayaran seperti virtual account, convenience store, e-wallet, dll.
 
-This is a Tripay payment gateway for [Easy Digital Downloads](https://wordpress.org/plugins/easy-digital-downloads/).
+Beberapa channel yang tersedia diantaranya:
+* BRI VA
+* BNI VA
+* BCA VA
+* Mandiri VA
+* Maybank VA
+* Permata VA
+* Muamalat VA
+* Sinarmas VA
+* Indomaret
+* Alfamart
+* QRIS
+* Kartu Kredit
+* dan terus bertambah.
 
-Tripay makes it easy for businesses in Indonesia to accept secure payments from multiple local payment channels. Integrate Tripay with your store today, and let your customers pay you with their choice of methods.
+Silahkan melakukan pendaftaran terlebih dahulu di (https://tripay.co.id) untuk bisa menggunakan plugin ini.
 
+== Changelog ==
 
-= Note =
-
-This plugin is meant to be used by merchants in Indonesia.
+= 1.0 =
+* Rilis pertama.

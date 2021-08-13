@@ -3,11 +3,11 @@
     Plugin Name:       Tripay Payment for EDD
     Plugin URL:        https://tripay.co.id
     Description:       Tripay payment gateway for Easy Digital Downloads
-    Version:           2.0.0
-    Author:            Suyadi
+    Version:           1.0.0
+    Author:            PT Trijaya Digital Group
     Author URI:        https://tripay.co.id
-    License:           GPL-2.0+
-    License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
+    License:           MIT
+    License URI:       https://opensource.org/licenses/MIT
     Text Domain:       edd-tripay
     Domain Path:       /languages
 */
