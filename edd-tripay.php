@@ -2,7 +2,7 @@
 /*
     Plugin Name:       TriPay Payment for EDD
     Plugin URL:        https://tripay.co.id
-    Description:       TriPay payment gateway for Easy Digital Downloads
+    Description:       Terima pembayaran online dengan banyak pilihan channel seperti Virtual Account, Convenience Store, E-Wallet, E-Banking, dll
     Version:           1.0.0
     Author:            PT Trijaya Digital Group
     Author URI:        https://tripay.co.id
